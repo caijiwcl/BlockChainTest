@@ -1,87 +1,54 @@
 #pragma once
 
 #include "stdafx.h"
-#include <time.h>
-#include <sstream>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/vector.hpp>
+#include <boost/serialization/string.hpp>
+
+
 class Block
 {
 public:
+    friend class boost::serialization::access;
+
     Block() {
         PrevBlockHash.resize(64);
         MerKleRoot.resize(64);
         Hash.resize(64);
+        Difficulty.resize(64);
     }
 
-    std::string Version;
+
+
+    int64_t Version = 0;
     std::vector<unsigned char>  PrevBlockHash;
     std::vector<unsigned char>  MerKleRoot;
-    time_t TimeStamp;
+    int64_t TimeStamp = 0;
     std::vector<unsigned char>  Hash;
     std::vector<unsigned char>  Data;
+    std::vector<unsigned char>  Difficulty;
 
-    static Block* NewBlock(std::string& data, std::vector<unsigned char>& tmp_PrevBlockHash)
+    int64_t Nonce = 0;
+
+    static void NewBlock(Block& block,std::string& data, std::vector<unsigned char>& tmp_PrevBlockHash);
+    static std::vector<unsigned char> Sha256(std::string str);
+    static void PrintBlock(Block* block);
+
+
+
+    template<class Archive>
+    void serialize(Archive& ar, const unsigned int version)
     {
-
-
-
-        Block* newbk = new Block();
-        newbk->Version = "0";
-        newbk->PrevBlockHash = tmp_PrevBlockHash;
-
-        newbk->TimeStamp = time(NULL);        
-        newbk->Data.assign(data.begin(), data.end());
+        ar& Version;
+        ar& PrevBlockHash;
+        ar& MerKleRoot;
+        ar& TimeStamp;
+        ar& Data;
+        ar& Difficulty;
+        ar& Nonce;
+    }
  
-        Block::SetHash(newbk);
-        return newbk;
-    }
 
-    static void SetHash(Block* block)
-    {
-        if (block == nullptr)
-            return;
-        std::vector<unsigned char> all_data;
-        all_data.insert(all_data.end(), block->Version.begin(), block->Version.begin() + block->Version.size());
-        all_data.insert(all_data.end(), block->PrevBlockHash.begin(), block->PrevBlockHash.begin() + block->PrevBlockHash.size());
-        
-        std::stringstream ss;
-        std::string str_time;
-        long long now = block->TimeStamp;
-        ss << now;
-        ss >> str_time;
-        all_data.insert(all_data.end(), str_time.begin(), str_time.begin() + str_time.size());
-        
-        all_data.insert(all_data.end(), block->Data.begin(), block->Data.begin() + block->Data.size());
-        
-              
-        std::string tmp;
-        tmp.assign(all_data.begin(), all_data.end());
-
-        std::vector<unsigned char> hash = Block::Sha256(tmp);
-
-        block->Hash = hash;
-
-    }
-
-    static std::vector<unsigned char> Sha256(std::string str)
-    {
-        char buf[3];
-        unsigned char hash[32] = { 0 };
-        SHA256_CTX sha256;
-        SHA256_Init(&sha256);
-        SHA256_Update(&sha256, str.c_str(), str.size());
-        SHA256_Final(hash, &sha256);
-
-        std::string NewString = "";
-        for (int i = 0; i < 32; i++)
-        {
-            int tmp = hash[i];
-            sprintf_s(buf, sizeof(buf), "%02x", tmp);
-
-            NewString = NewString.append(buf);
-        }
-
-        std::vector<unsigned char> tmp;
-        tmp.assign(NewString.begin(), NewString.end());
-        return tmp;
-    }
 };

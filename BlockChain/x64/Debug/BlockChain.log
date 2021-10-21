@@ -1,2 +1,10 @@
-﻿  BlockChain.cpp
-  BlockChain.vcxproj -> D:\QtProject\BlockChain\x64\Debug\BlockChain.exe
+﻿  stdafx.cpp
+  Block.cpp
+  BlockChain.cpp
+  BlockIterator.cpp
+  main.cpp
+  ProofofWork.cpp
+E:\MyProject\BlockChain\BlockChain\ProofofWork.cpp(36,43): warning C4267: “初始化”: 从“size_t”转换到“int”，可能丢失数据
+  正在生成代码...
+    正在创建库 E:\MyProject\BlockChain\x64\Debug\BlockChain.lib 和对象 E:\MyProject\BlockChain\x64\Debug\BlockChain.exp
+  BlockChain.vcxproj -> E:\MyProject\BlockChain\x64\Debug\BlockChain.exe

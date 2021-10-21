@@ -1,25 +1,190 @@
-ï»¿// BlockChain.cpp : æ­¤æ–‡ä»¶åŒ…å« "main" å‡½æ•°ã€‚ç¨‹åºæ‰§è¡Œå°†åœ¨æ­¤å¤„å¼€å§‹å¹¶ç»“æŸã€‚
-//
-
-
-
 #include "stdafx.h"
 #include "BlockChain.h"
+#include "leveldb/db.h"
 
-int main()
+#include <sstream>
+#include <boost/archive/binary_iarchive.hpp>
+#include <boost/archive/binary_oarchive.hpp>
+
+#include <boost/serialization/access.hpp>
+#include <boost/serialization/vector.hpp>
+
+#include "BlockIterator.h"
+
+void BlockChain::testDB()
 {
-    BlockChain blockchain;
+    leveldb::DB* db;
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "testdb", &db);
+    assert(status.ok());
 
-    blockchain.PrintBlockChain();
+    std::string key = "id";
+    std::string value = "object";
+    if (status.ok())
+    {
+        db->Put(leveldb::WriteOptions(), key, value);
+    }
+
+
+    delete db;
 }
 
-// è¿è¡Œç¨‹åº: Ctrl + F5 æˆ–è°ƒè¯• >â€œå¼€å§‹æ‰§è¡Œ(ä¸è°ƒè¯•)â€èœå•
-// è°ƒè¯•ç¨‹åº: F5 æˆ–è°ƒè¯• >â€œå¼€å§‹è°ƒè¯•â€èœå•
+BlockChain::BlockChain()
+{
 
-// å…¥é—¨ä½¿ç”¨æŠ€å·§: 
-//   1. ä½¿ç”¨è§£å†³æ–¹æ¡ˆèµ„æºç®¡ç†å™¨çª—å£æ·»åŠ /ç®¡ç†æ–‡ä»¶
-//   2. ä½¿ç”¨å›¢é˜Ÿèµ„æºç®¡ç†å™¨çª—å£è¿æ¥åˆ°æºä»£ç ç®¡ç†
-//   3. ä½¿ç”¨è¾“å‡ºçª—å£æŸ¥çœ‹ç”Ÿæˆè¾“å‡ºå’Œå…¶ä»–æ¶ˆæ¯
-//   4. ä½¿ç”¨é”™è¯¯åˆ—è¡¨çª—å£æŸ¥çœ‹é”™è¯¯
-//   5. è½¬åˆ°â€œé¡¹ç›®â€>â€œæ·»åŠ æ–°é¡¹â€ä»¥åˆ›å»ºæ–°çš„ä»£ç æ–‡ä»¶ï¼Œæˆ–è½¬åˆ°â€œé¡¹ç›®â€>â€œæ·»åŠ ç°æœ‰é¡¹â€ä»¥å°†ç°æœ‰ä»£ç æ–‡ä»¶æ·»åŠ åˆ°é¡¹ç›®
-//   6. å°†æ¥ï¼Œè‹¥è¦å†æ¬¡æ‰“å¼€æ­¤é¡¹ç›®ï¼Œè¯·è½¬åˆ°â€œæ–‡ä»¶â€>â€œæ‰“å¼€â€>â€œé¡¹ç›®â€å¹¶é€‰æ‹© .sln æ–‡ä»¶
+}
+
+std::pair<BlockChain*, std::vector<unsigned char>>BlockChain::NewBlockChain()
+{
+    BlockChain* blockchain = new BlockChain();  //´´½¨Ò»¸öÇø¿éÁ´¶ÔÏó
+
+    //¹¦ÄÜ·ÖÎö£º
+//1.´ò¿ªÊı¾İ¿â£¬Ğ´ÈëÊı¾İ
+
+    leveldb::Options options;
+    options.create_if_missing = true;
+    leveldb::Status status = leveldb::DB::Open(options, "testdb", &(blockchain->db));
+    assert(status.ok());
+
+    //2.Ğ´Èë´´ÊÀ¿é
+
+    Block block;  //¿Õ¿é£¬Ê¹ÓÃ¾Ö²¿±äÁ¿£¬´æ´¢Íê¾ÍÏú»Ù£¬²»½øĞĞnew
+
+    std::string str_lasthashvalue;
+    status = blockchain->db->Get(leveldb::ReadOptions(), "LastHash", &str_lasthashvalue);
+
+
+    if (!status.ok())  //Ã»²éÑ¯µ½¾ÍÌí¼ÓÊı¾İ
+    {
+
+        std::string str = "hello world";
+        std::vector<unsigned char> prevHash(64, '0');
+        Block::NewBlock(block, str, prevHash);  //´´ÊÀ¿é³õÊ¼»¯
+
+        std::string str_hash;
+        str_hash.assign(block.Hash.begin(), block.Hash.end());
+        leveldb::Slice Hash = str_hash;
+
+        std::stringstream binary_sstream;
+        boost::archive::binary_oarchive binary_oa(binary_sstream);
+
+        binary_oa << block;
+        
+        std::string bin_str = binary_sstream.str();
+
+        leveldb::Slice slice_block = bin_str;
+
+        status = blockchain->db->Put(leveldb::WriteOptions(), Hash, slice_block);
+
+        //3.Ğ´Èëlasthash
+        status = blockchain->db->Put(leveldb::WriteOptions(), "LastHash", Hash);
+        
+    }
+
+
+
+    //Ã»²éÑ¯µ½¾ÍĞ´ÈëÇø¿é£¬²»¹Ü²éÃ»²éµ½¶¼·µ»Ø×îºóÒ»¸öÇø¿éµÄhash
+
+    return std::make_pair(blockchain,block.Hash);
+
+
+
+   
+
+
+}
+
+BlockChain::~BlockChain()
+{
+    delete db;
+}
+
+
+void BlockChain::AddBlock( std::string data)
+{
+    std::string str_lasthashvalue;
+    leveldb::Status status = db->Get(leveldb::ReadOptions(), "LastHash", &str_lasthashvalue);
+        
+    std::vector<unsigned char> PreHash;
+    PreHash.assign(str_lasthashvalue.begin(), str_lasthashvalue.end());
+
+    Block block; //¿Õblock
+
+    //ĞÂ½¨Çø¿é
+    Block::NewBlock(block,data, PreHash);
+    
+    std::stringstream binary_sstream;
+
+    boost::archive::binary_oarchive binary_oa(binary_sstream);
+
+    binary_oa << block;
+
+    std::string str_hash;
+    str_hash.assign(block.Hash.begin(), block.Hash.end());
+    leveldb::Slice Hash = str_hash;
+
+    std::string bin_block = binary_sstream.str();
+    leveldb::Slice slice_block = bin_block;
+
+    status = db->Put(leveldb::WriteOptions(), Hash, slice_block);
+
+    //3.¸üĞÂlasthash
+
+    status = db->Put(leveldb::WriteOptions(), "LastHash", Hash);
+
+    //blockchain.push_back(&block);
+}
+
+void BlockChain::PrintBlockChain()
+{
+    std::cout << "±éÀúÇø¿é:------------------" << std::endl;
+
+    //µ¹×Å±éÀú
+
+    //std::string str_lasthashvalue;
+    //leveldb::Status status = db->Get(leveldb::ReadOptions(), "LastHash", &str_lasthashvalue);
+
+    //if (status.ok())
+    //{
+
+    //    std::vector<unsigned char> GensisPreHash(64, '0');  //´´ÊÀÇø¿éµÄPreHash
+
+    //    std::vector<unsigned char> PreHash;
+    //    //tailÇø¿éµÄvalue¾ÍÊÇµ¹ÊıµÚ¶ş¸öÇø¿éµÄhash£¬¿ÉÒÔ¼ÙÉèËû¾ÍÊÇ×îºóÒ»¸öÇø¿éµÄprehash
+
+    //    PreHash.assign(str_lasthashvalue.begin(), str_lasthashvalue.end());
+
+    //    while (PreHash != GensisPreHash)  //prehashÖ»Òª²»ÊÇ´´ÊÀÇø¿éµÄprehash¾ÍÒ»Ö±±éÀú
+    //    {
+    //        std::string str_prehash;
+    //        str_prehash.assign(PreHash.begin(),PreHash.end());
+
+    //        std::string blockvalue;
+
+    //        status = db->Get(leveldb::ReadOptions(), leveldb::Slice(str_prehash), &blockvalue);
+
+    //        std::stringstream binary_sstream(blockvalue);
+
+    //        boost::archive::binary_iarchive binary_ia(binary_sstream);
+
+    //        Block block;
+
+    //        binary_ia >> block;
+
+    //        PreHash = block.PrevBlockHash;
+
+    //        Block::PrintBlock(&block);
+    //    }
+    //  
+
+    //}
+
+    BlockIterator iterblk(db);
+    Block block;//¿Õ¿é£¬±ÜÃâ¿ª±Ù¿Õ¼ä£¬Ã¿´Îµü´ú¶¼Ö»ÊÇ¸ø¿éÖĞÊı¾İ¸³Öµ
+    while (iterblk.Next(block) != false)
+    {
+        Block::PrintBlock(&block);
+    }
+    Block::PrintBlock(&block);
+}
